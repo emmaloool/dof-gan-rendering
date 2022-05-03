@@ -55,53 +55,39 @@ class ARGenerator(nn.Module):
         """
         # print("--------------- GENERATOR ---------------")
         # print("Input c shape: ", c.shape)
-        # output = self.init_adain(c, z)
-        # output = F.relu(output)
+        
+        z_flat = z.view(-1,128)
+        output = self.init_adain(c, z_flat)
+        output = F.relu(output)
         # print("AFTER ADAIN: ", output.shape)
-        output = c
 
         output = self.deconv_1(output)
+        output = self.adain_1(output, z_flat)
         output = F.relu(output)
-        # output = self.adain_1(output, z)
         # print("AFTER DECONV1: ", output.shape)
 
-
         output = self.deconv_2(output)
+        output = self.adain_2(output, z_flat)
         output = F.relu(output)
         # print("AFTER DECONV2: ", output.shape)
 
-
         output = self.deconv_3(output)
+        output = self.adain_3(output, z_flat)
         output = F.relu(output)
         # print("AFTER DECONV3: ", output.shape)
 
-
         output = self.deconv_4(output)
+        output = self.adain_4(output, z_flat)
         output = F.relu(output)
         # print("AFTER DECONV4: ", output.shape)
 
-        # print("------- I_g -------")
-        # Seperably handle I,D
         I = self.conv_I(output)
         I = F.tanh(I)
 
-        # print("I_g: ", I.shape)
-
-        # print("------- D_g -------")
         D = self.conv_D(output)
-        D = F.tanh(D)
-        # print("After conv_D: ", D.shape)
-
-        img_size = D.shape[0] #TODO: print shape & use correct index for 64
-        # print("img_size = ", img_size)
-        mlp_z = self.mlp.forward(z).view(16, 1, 1, 1)
-        # print("mlp_z: ", mlp_z.shape)
-         
-        D = torch.mul(mlp_z, 10*D)
-        # print("D shape: ", D.shape)
-        # print("???: ", torch.mul(mlp_z, 10*D).shape)
-        # print("D_g: ", D.shape)
-
+        mlp_z = self.mlp.forward(z).view(16, 1, 1, 1)         
+        D = torch.mul(mlp_z, 10*F.tanh(D))
+        
         return I, D
 
 

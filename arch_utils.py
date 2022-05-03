@@ -135,16 +135,13 @@ class AdaIN(nn.Module):
         self.style.linear.bias.data[in_channel:] = 0
 
     def forward(self, input, style):
-        # print("Style: ", self.style(style).shape)
-        # print("Style: ", self.style(style).shape)
-
         style = self.style(style).unsqueeze(2).unsqueeze(3)
         gamma, beta = style.chunk(2, 1)
 
         out = self.norm(input)
         out = gamma * out + beta
 
-        return 
+        return out
 
 
 # MLP implementation from https://colab.research.google.com/github/bentrevett/pytorch-image-classification/blob/master/1_mlp.ipynb#scrollTo=lAqzcW9XREvu

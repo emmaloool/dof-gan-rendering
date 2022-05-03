@@ -35,7 +35,7 @@ def warp_depthmap(D):
     #         D_xy = D[y][x]
     #         for v in range(5):                  # v: vertical aperture coordinate
     #             for u in range(5):              # u: horizontal aperture coordinate
-    #                 flat_uv = u*5+v
+    #                 flat_uv = v*5+u
     #                 y_p, x_p = (np.clip(y + int(v*D_xy), 0, 63), np.clip(x + int(u*D_xy), 0, 63))
     #                 D_warp[flat_uv][y][x] = D[y_p][x_p]
                                 
@@ -93,4 +93,49 @@ def Render(M, I_g):
 # a = torch.randn(16,25,64,64)
 # b = torch.randn(16,3,64,64)
 # Render(a, b)
+
+def rgb2gray(rgb):
+    r, g, b = rgb[:,:,0], rgb[:,:,1], rgb[:,:,2]
+    gray = 0.2989 * r + 0.5870 * g + 0.1140 * b
+    return gray 
+
+def testWarp(D):
+    # D = D.reshape((64,64))  # reshape into 2D depth map
+    orig_shape = D.shape
+    D_warp = np.zeros((25, orig_shape[0], orig_shape[1]))
+
+    for y in range(orig_shape[0]):         # y: vertical aperture coordinate
+        for x in range(orig_shape[1]):     # x: horizontal aperture coordinate
+            print(y,x)
+            D_xy = D[y][x]
+            for v in range(5):                  # v: vertical aperture coordinate
+                for u in range(5):              # u: horizontal aperture coordinate
+                    flat_uv = v*5+u
+                    y_p, x_p = (np.clip(y + int(v*D_xy), 0, orig_shape[0]-1), np.clip(x + int(u*D_xy), 0, orig_shape[1]-1))
+                    D_warp[flat_uv][y][x] = D[y_p][x_p]
+
+    return D_warp
+
+test = rgb2gray(io.imread("depth.jpeg"))
+D_warp = testWarp(test)
+
+print("done")
+
+# ------------ create subaperture views ------------
+VIEWS = np.zeros((5*test.shape[0], 5*test.shape[1]))
+for v in range(5):
+    for u in range(5):
+        flat_uv = v*5+u
+        print(flat_uv)
+        for y in range(test.shape[0]):
+            for x in range(test.shape[1]):
+                VIEWS[v*test.shape[0] + y][u*test.shape[1] + x] = D_warp[flat_uv][y][x]
+
+io.imsave("collage.jpeg", VIEWS)
+
+
+# io.imsave("blah.jpeg", rgb2gray(test))
+
+
+
 

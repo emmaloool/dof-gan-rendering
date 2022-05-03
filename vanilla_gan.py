@@ -105,8 +105,8 @@ def checkpoint(iteration, G, D, opts):
     torch.save(D.state_dict(), D_path)
 
 
-def save_samples(G, fixed_noise, iteration, opts):
-    generated_images = G(fixed_noise)
+def save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts):
+    generated_images, _ = G(fixed_noise_c, fixed_noise_z)
     generated_images = utils.to_data(generated_images)
 
     grid = create_image_grid(generated_images)
@@ -154,7 +154,9 @@ def training_loop(train_dataloader, opts):
     d_optimizer = optim.Adam(D.parameters(), opts.lr, [opts.beta1, opts.beta2])
 
     # Generate fixed noise for sampling from the generator
-    fixed_noise = sample_noise(opts.noise_size)  # batch_size x noise_size x 1 x 1
+    # fixed_noise = sample_noise(opts.noise_size)  # batch_size x noise_size x 1 x 1
+    fixed_noise_z = sample_noise(opts.noise_size)
+    fixed_noise_c = sample_noise(1024*4*4).view(16,1024,4,4)
 
     iteration = 1
 
@@ -221,16 +223,19 @@ def training_loop(train_dataloader, opts):
             I_g, D_g  = G.forward(noise_c, noise_z)
             if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
                 I_g = DiffAugment(I_g, policy)
+
+            G_loss = torch.mean((D(I_g) - 1) ** 2)
             
+            # ------------------- DoF mixture learning -------------------
             # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
             s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
-             
-            # ----------- measure how long it takes to render an image -----------
             print("Iteration " + str(iteration) + ": Rendering........ ")
             start = time.time()
             D_warp = warp_depthmap(s * D_g)
+            print("done warping depth map")
             M = T(D_warp)
             I_s = Render(M, I_g)
+            print("done rendering")
             end = time.time()
             if iteration % opts.sample_every == 0:
                 render_time = int(end-start)
@@ -238,7 +243,8 @@ def training_loop(train_dataloader, opts):
 
             # 3. Compute the generator loss
             G_loss = torch.mean((D(I_s) - 1) ** 2)
-
+            # ---------------------------------------------------------
+            
             # update the generator G
             g_optimizer.zero_grad()
             G_loss.backward()
@@ -256,7 +262,8 @@ def training_loop(train_dataloader, opts):
 
             # Save the generated samples
             if iteration % opts.sample_every == 0:
-                save_samples(G, fixed_noise, iteration, opts)
+                print("Saving...")
+                save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts)
                 save_images(real_images, iteration, opts, 'real')
 
             # Save the model parameters
@@ -264,8 +271,6 @@ def training_loop(train_dataloader, opts):
                 checkpoint(iteration, G, D, opts)
 
             iteration += 1
-
-            break   # TODO: remove later
 
 
 def main(opts):
