@@ -9,6 +9,9 @@
 #    To train with the default hyperparamters (saves results to checkpoints_vanilla/ and samples_vanilla/):
 #       python vanilla_gan.py
 
+from skimage import io, color
+
+
 import argparse
 from ast import Break
 import os
@@ -225,6 +228,10 @@ def training_loop(train_dataloader, opts):
                 I_g = DiffAugment(I_g, policy)
 
             G_loss = torch.mean((D(I_g) - 1) ** 2)
+
+            print(I_g.detach().numpy().shape)
+            # io.imsave("I_g.jpeg", I_g.detach().numpy().transpose(1, 2, 0))
+            save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts)
             
             # ------------------- DoF mixture learning -------------------
             # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
@@ -245,20 +252,21 @@ def training_loop(train_dataloader, opts):
             G_loss = torch.mean((D(I_s) - 1) ** 2)
             # ---------------------------------------------------------
             
+            print("G_loss", G_loss)
             # update the generator G
-            g_optimizer.zero_grad()
-            G_loss.backward()
-            g_optimizer.step()
+            # g_optimizer.zero_grad()
+            # G_loss.backward()
+            # g_optimizer.step()
 
 
             # Print the log info
-            if iteration % opts.log_step == 0:
-                print('Iteration [{:4d}/{:4d}] | D_real_loss: {:6.4f} | D_fake_loss: {:6.4f} | G_loss: {:6.4f}'.format(
-                       iteration, total_train_iters, D_real_loss.item(), D_fake_loss.item(), G_loss.item()))
-                logger.add_scalar('D/fake', D_fake_loss, iteration)
-                logger.add_scalar('D/real', D_real_loss, iteration)
-                logger.add_scalar('D/total', D_total_loss, iteration)
-                logger.add_scalar('G/total', G_loss, iteration)
+            # if iteration % opts.log_step == 0:
+            #     print('Iteration [{:4d}/{:4d}] | D_real_loss: {:6.4f} | D_fake_loss: {:6.4f} | G_loss: {:6.4f}'.format(
+            #            iteration, total_train_iters, D_real_loss.item(), D_fake_loss.item(), G_loss.item()))
+            #     logger.add_scalar('D/fake', D_fake_loss, iteration)
+            #     logger.add_scalar('D/real', D_real_loss, iteration)
+            #     logger.add_scalar('D/total', D_total_loss, iteration)
+            #     logger.add_scalar('G/total', G_loss, iteration)
 
             # Save the generated samples
             if iteration % opts.sample_every == 0:
@@ -271,6 +279,8 @@ def training_loop(train_dataloader, opts):
                 checkpoint(iteration, G, D, opts)
 
             iteration += 1
+
+            return
 
 
 def main(opts):

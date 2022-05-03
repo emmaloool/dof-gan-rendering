@@ -116,22 +116,23 @@ def testWarp(D):
 
     return D_warp
 
-test = rgb2gray(io.imread("depth.jpeg"))
-D_warp = testWarp(test)
+# test = rgb2gray(io.imread("depth.jpeg"))
+# D_warp = testWarp(test)
+# D_warp = (D_warp - np.min(D_warp) )/ (np.max(D_warp) - np.min(D_warp) )
 
-print("done")
+# print("done")
 
-# ------------ create subaperture views ------------
-VIEWS = np.zeros((5*test.shape[0], 5*test.shape[1]))
-for v in range(5):
-    for u in range(5):
-        flat_uv = v*5+u
-        print(flat_uv)
-        for y in range(test.shape[0]):
-            for x in range(test.shape[1]):
-                VIEWS[v*test.shape[0] + y][u*test.shape[1] + x] = D_warp[flat_uv][y][x]
+# # ------------ create subaperture views ------------
+# VIEWS = np.zeros((5*test.shape[0], 5*test.shape[1]))
+# for v in range(5):
+#     for u in range(5):
+#         flat_uv = v*5+u
+#         print(flat_uv)
+#         for y in range(test.shape[0]):
+#             for x in range(test.shape[1]):
+#                 VIEWS[v*test.shape[0] + y][u*test.shape[1] + x] = D_warp[flat_uv][y][x]
 
-io.imsave("collage.jpeg", VIEWS)
+# io.imsave("collage.jpeg", VIEWS)
 
 
 # io.imsave("blah.jpeg", rgb2gray(test))
