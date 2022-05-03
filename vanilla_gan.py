@@ -29,11 +29,14 @@ from torch.utils.tensorboard import SummaryWriter
 # Local imports
 import utils
 from data_loader import get_data_loader
-from models import ARGenerator, ARDiscriminator
+from models import ARGenerator, ARDiscriminator, DepthExpansionNetwork
 
 from diff_augment import DiffAugment
 policy = 'color,translation,cutout'
 
+from renderer import warp_depthmap, Render
+
+import time
 
 SEED = 11
 
@@ -63,15 +66,16 @@ def create_model(opts):
     """
     G = ARGenerator(noise_size=opts.noise_size, conv_dim=opts.conv_dim)
     D = ARDiscriminator(conv_dim=opts.conv_dim)
+    T = DepthExpansionNetwork()
 
-    print_models(G, D)
+    # print_models(G, D)
 
     if torch.cuda.is_available():
         G.cuda()
         D.cuda()
         print('Models moved to GPU.')
 
-    return G, D
+    return G, D, T
 
 
 def create_image_grid(array, ncols=None):
@@ -143,7 +147,7 @@ def training_loop(train_dataloader, opts):
     """
 
     # Create generators and discriminators
-    G, D = create_model(opts)
+    G, D, T = create_model(opts)
 
     # Create optimizers for the generators and discriminators
     g_optimizer = optim.Adam(G.parameters(), opts.lr, [opts.beta1, opts.beta2])
@@ -155,6 +159,7 @@ def training_loop(train_dataloader, opts):
     iteration = 1
 
     total_train_iters = opts.num_epochs * len(train_dataloader)
+
 
     for epoch in range(opts.num_epochs):
 
@@ -173,17 +178,21 @@ def training_loop(train_dataloader, opts):
             # FILL THIS IN
             # 1. Compute the discriminator loss on real images
             D_real_loss = torch.mean((D(real_images) - 1)**2)
-
+            
             # 2. Sample noise
-            noise = sample_noise(opts.noise_size)
-
+            noise_z = sample_noise(opts.noise_size)
+            noise_c = sample_noise(1024*4*4).view(16,1024,4,4)
+            # print("noise_z: ", noise_z.shape)
+            # print("noise_c: ", noise_c.shape)
+            
             # 3. Generate fake images from the noise
-            fake_images = G.forward(noise)
+            I_g, D_g  = G.forward(noise_c, noise_z)
+
             if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
-                fake_images = DiffAugment(fake_images, policy)
+                I_g = DiffAugment(I_g, policy)
 
             # 4. Compute the discriminator loss on the fake images
-            D_fake_loss = torch.mean((D(fake_images.detach())) ** 2)
+            D_fake_loss = torch.mean((D(I_g.detach())) ** 2)
 
             D_total_loss = torch.add(torch.div(D_real_loss, 2), torch.div(D_fake_loss, 2))
 
@@ -192,26 +201,49 @@ def training_loop(train_dataloader, opts):
             D_total_loss.backward()
             d_optimizer.step()
 
+
             ###########################################
             ###          TRAIN THE GENERATOR        ###
             ###########################################
 
             # FILL THIS IN
             # 1. Sample noise
-            noise = sample_noise(opts.noise_size)
+            I_g, D_g  = G.forward(noise_c, noise_z)
 
             # 2. Generate fake images from the noise
-            fake_images = G.forward(noise)
+            '''
+                NOTE: Instead of using the generated deep image I_g directly as the fake image,
+                we will implement DoF mixture learning, which has us generate a shallow image
+                by rendering over deep I_g and D_g scaled by some random s in [0,1] (depth scaled to some extent)
+            ''' 
+
+            s = torch.randn(1).uniform_(0,1)    # Sample s from Bernoulli distribution in [0,1]
+            I_g, D_g  = G.forward(noise_c, noise_z)
             if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
-                fake_images = DiffAugment(fake_images, policy)
+                I_g = DiffAugment(I_g, policy)
+            
+            # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
+            s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
+             
+            # ----------- measure how long it takes to render an image -----------
+            print("Iteration " + str(iteration) + ": Rendering........ ")
+            start = time.time()
+            D_warp = warp_depthmap(s * D_g)
+            M = T(D_warp)
+            I_s = Render(M, I_g)
+            end = time.time()
+            if iteration % opts.sample_every == 0:
+                render_time = int(end-start)
+                print("Render time: ", str(render_time/60) + "m" + str(render_time%60) + "s")
 
             # 3. Compute the generator loss
-            G_loss = torch.mean((D(fake_images) - 1) ** 2)
+            G_loss = torch.mean((D(I_s) - 1) ** 2)
 
             # update the generator G
             g_optimizer.zero_grad()
             G_loss.backward()
             g_optimizer.step()
+
 
             # Print the log info
             if iteration % opts.log_step == 0:
@@ -232,6 +264,8 @@ def training_loop(train_dataloader, opts):
                 checkpoint(iteration, G, D, opts)
 
             iteration += 1
+
+            break   # TODO: remove later
 
 
 def main(opts):
@@ -256,7 +290,7 @@ def create_parser():
     # Model hyper-parameters
     parser.add_argument('--image_size', type=int, default=64, help='The side length N to convert images to NxN.')
     parser.add_argument('--conv_dim', type=int, default=32)
-    parser.add_argument('--noise_size', type=int, default=100)
+    parser.add_argument('--noise_size', type=int, default=128)
     parser.add_argument('--use_diffaug', action='store_true', default=False, help='Choose whether to perform differentiable augmentation.')
 
 
