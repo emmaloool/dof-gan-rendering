@@ -187,8 +187,6 @@ def training_loop(train_dataloader, opts):
             # 2. Sample noise
             noise_z = sample_noise(opts.noise_size)
             noise_c = sample_noise(1024*4*4).view(16,1024,4,4)
-            # print("noise_z: ", noise_z.shape)
-            # print("noise_c: ", noise_c.shape)
             
             # 3. Generate fake images from the noise
             I_g, D_g  = G.forward(noise_c, noise_z)
@@ -216,57 +214,55 @@ def training_loop(train_dataloader, opts):
             I_g, D_g  = G.forward(noise_c, noise_z)
 
             # 2. Generate fake images from the noise
-            '''
-                NOTE: Instead of using the generated deep image I_g directly as the fake image,
-                we will implement DoF mixture learning, which has us generate a shallow image
-                by rendering over deep I_g and D_g scaled by some random s in [0,1] (depth scaled to some extent)
-            ''' 
+            
 
             s = torch.randn(1).uniform_(0,1)    # Sample s from Bernoulli distribution in [0,1]
             I_g, D_g  = G.forward(noise_c, noise_z)
             if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
                 I_g = DiffAugment(I_g, policy)
 
+            # -------------------- TRAINING ON ONLY GENERATED DEEP DOF IMAGE --------------------
+            # TODO: COMMENT THIS OUT IF YOU'RE ENABLING DOF MIXTURE LEARNING BELOW, THESE SECTIONS ARE MUTUALLY EXCLUSIVE
             G_loss = torch.mean((D(I_g) - 1) ** 2)
-
-            print(I_g.detach().numpy().shape)
-            # io.imsave("I_g.jpeg", I_g.detach().numpy().transpose(1, 2, 0))
-            save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts)
             
             # ------------------- DoF mixture learning -------------------
-            # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
-            s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
-            print("Iteration " + str(iteration) + ": Rendering........ ")
-            start = time.time()
-            D_warp = warp_depthmap(s * D_g)
-            print("done warping depth map")
-            M = T(D_warp)
-            I_s = Render(M, I_g)
-            print("done rendering")
-            end = time.time()
-            if iteration % opts.sample_every == 0:
-                render_time = int(end-start)
-                print("Render time: ", str(render_time/60) + "m" + str(render_time%60) + "s")
+            # '''
+            #     NOTE: Instead of using the generated deep image I_g directly as the fake image,
+            #     we will implement DoF mixture learning, which has us generate a shallow image
+            #     by rendering over deep I_g and D_g scaled by some random s in [0,1] (depth scaled to some extent)
+            # ''' 
+            # # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
+            # s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
+            # print("Iteration " + str(iteration) + ": Rendering........ ")
+            # start = time.time()
+            # D_warp = warp_depthmap(s * D_g)
+            # print("done warping depth map")
+            # M = T(D_warp)
+            # I_s = Render(M, I_g)
+            # print("done rendering")
+            # end = time.time()
+            # if iteration % opts.sample_every == 0:
+            #     render_time = int(end-start)
+            #     print("Render time: ", str(render_time/60) + "m" + str(render_time%60) + "s")
 
-            # 3. Compute the generator loss
-            G_loss = torch.mean((D(I_s) - 1) ** 2)
+            # # 3. Compute the generator loss
+            # G_loss = torch.mean((D(I_s) - 1) ** 2)
             # ---------------------------------------------------------
             
-            print("G_loss", G_loss)
             # update the generator G
-            # g_optimizer.zero_grad()
-            # G_loss.backward()
-            # g_optimizer.step()
+            g_optimizer.zero_grad()
+            G_loss.backward()
+            g_optimizer.step()
 
 
             # Print the log info
-            # if iteration % opts.log_step == 0:
-            #     print('Iteration [{:4d}/{:4d}] | D_real_loss: {:6.4f} | D_fake_loss: {:6.4f} | G_loss: {:6.4f}'.format(
-            #            iteration, total_train_iters, D_real_loss.item(), D_fake_loss.item(), G_loss.item()))
-            #     logger.add_scalar('D/fake', D_fake_loss, iteration)
-            #     logger.add_scalar('D/real', D_real_loss, iteration)
-            #     logger.add_scalar('D/total', D_total_loss, iteration)
-            #     logger.add_scalar('G/total', G_loss, iteration)
+            if iteration % opts.log_step == 0:
+                print('Iteration [{:4d}/{:4d}] | D_real_loss: {:6.4f} | D_fake_loss: {:6.4f} | G_loss: {:6.4f}'.format(
+                       iteration, total_train_iters, D_real_loss.item(), D_fake_loss.item(), G_loss.item()))
+                logger.add_scalar('D/fake', D_fake_loss, iteration)
+                logger.add_scalar('D/real', D_real_loss, iteration)
+                logger.add_scalar('D/total', D_total_loss, iteration)
+                logger.add_scalar('G/total', G_loss, iteration)
 
             # Save the generated samples
             if iteration % opts.sample_every == 0:
@@ -280,7 +276,6 @@ def training_loop(train_dataloader, opts):
 
             iteration += 1
 
-            return
 
 
 def main(opts):

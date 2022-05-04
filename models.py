@@ -31,10 +31,12 @@ class ARGenerator(nn.Module):
         self.adain_4 = AdaIN(64, 128)
 
         # ----- Image generator G_I -----
-        self.conv_I = conv(64, 3, kernel_size=4, stride=2, padding=33, norm='none')
+        # self.conv_I = conv(64, 3, kernel_size=4, stride=2, padding=33, norm='none')
+        # TODO: fix image dim here
+        self.conv_I = conv(64, 3, kernel_size=4, stride=1, padding=2, norm='none')
 
         # ----- Depth generator G_D -----
-        self.conv_D = conv(64, 1, kernel_size=4, stride=2, padding=33, norm='none')
+        self.conv_D = conv(64, 1, kernel_size=4, stride=2, padding=2, norm='none')
         self.mlp    = MLP(noise_size, 1)
 
 
@@ -55,7 +57,7 @@ class ARGenerator(nn.Module):
         """
         # print("--------------- GENERATOR ---------------")
         # print("Input c shape: ", c.shape)
-        
+
         z_flat = z.view(-1,128)
         output = self.init_adain(c, z_flat)
         output = F.relu(output)
@@ -83,6 +85,7 @@ class ARGenerator(nn.Module):
 
         I = self.conv_I(output)
         I = F.tanh(I)
+        # print("AFTER CONV: ", I.shape)
 
         D = self.conv_D(output)
         mlp_z = self.mlp.forward(z).view(16, 1, 1, 1)         
