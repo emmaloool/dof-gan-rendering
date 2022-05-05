@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.nn.utils as utils
+import math
 
 # ------ from 16-726 HW3 ------
 def conv(in_channels, out_channels, kernel_size, stride=2, padding=1, norm='batch', init_zero_weights=False, spectral=False):
@@ -169,3 +170,41 @@ class MLP(nn.Module):
 
         # y_pred = [batch size, output dim]
         return y_pred
+
+# module for center prior loss
+class CenterFocusPriorLoss(nn.Module):
+    def __init__(self, g, th):
+        super().__init__()
+        self.g = g
+        self.th = th
+       
+    def forward(self, img):
+        # calculate center of image
+        device = img.device
+        dim = img.shape[-1]
+        center = dim / 2.
+
+        # fast algorithm
+        # this implements the following:
+        # for x in range(dim):
+        #     for y in range(dim):
+                # r = math.sqrt((x - center)**2 + (y - center)**2)
+                # if r <= self.th:
+                #     center_prior[:, : , x, y] = 0.
+                # else:
+                #     center_prior[:, : , x, y] = -self.g * (r - self.th)
+        
+        # calculate grid of radii
+        range = torch.range(0, dim-1, 1, device=device)
+        x, y = torch.meshgrid(range, range)
+        r = (x - center) ** 2 + (y - center) ** 2
+        r = r.sqrt()
+        # calculate center prior
+        center_prior = -self.g * (r - self.th)
+        center_prior[r <= self.th] = 0
+
+        # replicate prior for all images in batch
+        center_prior = center_prior.unsqueeze(0).repeat(img.shape[0], 1, 1, 1)
+
+        # calculate loss
+        return nn.MSELoss()(img, center_prior)

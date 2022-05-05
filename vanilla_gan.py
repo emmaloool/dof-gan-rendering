@@ -18,6 +18,7 @@ import os
 import warnings
 
 import imageio
+from zmq import device
 
 warnings.filterwarnings("ignore")
 
@@ -33,7 +34,7 @@ from torch.utils.tensorboard import SummaryWriter
 import utils
 from data_loader import get_data_loader
 from models import ARGenerator, ARDiscriminator, DepthExpansionNetwork
-
+from arch_utils import CenterFocusPriorLoss
 from diff_augment import DiffAugment
 policy = 'color,translation,cutout'
 
@@ -156,7 +157,8 @@ def training_loop(train_dataloader, opts):
 
     # Create generators and discriminators
     G, D, T = create_model(opts)
-
+    cfprior = CenterFocusPriorLoss(opts.g, opts.image_size / 4)
+    
     # Create optimizers for the generators and discriminators
     g_optimizer = optim.Adam(G.parameters(), opts.lr, [opts.beta1, opts.beta2])
     d_optimizer = optim.Adam(D.parameters(), opts.lr, [opts.beta1, opts.beta2])
@@ -254,6 +256,9 @@ def training_loop(train_dataloader, opts):
             # G_loss = torch.mean((D(I_s) - 1) ** 2)
             # ---------------------------------------------------------
             
+            # center focus prior loss
+            cfprior_loss = cfprior(D_g)
+            G_loss += opts.cfprior_w * cfprior_loss
             # update the generator G
             g_optimizer.zero_grad()
             G_loss.backward()
@@ -328,6 +333,8 @@ def create_parser():
     parser.add_argument('--log_step', type=int , default=10)
     parser.add_argument('--sample_every', type=int , default=200)
     parser.add_argument('--checkpoint_every', type=int , default=400)
+    parser.add_argument('--g', type=float, default=0.1)
+    parser.add_argument('--cfprior_w', type=float, default=0.01)
 
     return parser
 
