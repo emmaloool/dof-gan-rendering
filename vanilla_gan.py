@@ -109,15 +109,20 @@ def checkpoint(iteration, G, D, opts):
 
 
 def save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts):
-    generated_images, _ = G(fixed_noise_c, fixed_noise_z)
+    generated_images, depthmap = G(fixed_noise_c, fixed_noise_z)
     generated_images = utils.to_data(generated_images)
+    depthmap = utils.to_data(depthmap)
 
     grid = create_image_grid(generated_images)
+    dgrid = create_image_grid(depthmap)
 
     # merged = merge_images(X, fake_Y, opts)
     path = os.path.join(opts.sample_dir, 'sample-{:06d}.png'.format(iteration))
     imageio.imwrite(path, grid)
     print('Saved {}'.format(path))
+    dpath = os.path.join(opts.sample_dir, 'depth-{:06d}.png'.format(iteration))
+    imageio.imwrite(dpath, dgrid)
+    print('Saved {}'.format(dpath))
 
 
 def save_images(images, iteration, opts, name):
@@ -197,7 +202,7 @@ def training_loop(train_dataloader, opts):
             # 4. Compute the discriminator loss on the fake images
             D_fake_loss = torch.mean((D(I_g.detach())) ** 2)
 
-            D_total_loss = torch.add(torch.div(D_real_loss, 2), torch.div(D_fake_loss, 2))
+            D_total_loss = D_real_loss + D_fake_loss
 
             # update the discriminator D
             d_optimizer.zero_grad()
@@ -301,7 +306,7 @@ def create_parser():
     parser.add_argument('--image_size', type=int, default=64, help='The side length N to convert images to NxN.')
     parser.add_argument('--conv_dim', type=int, default=32)
     parser.add_argument('--noise_size', type=int, default=128)
-    parser.add_argument('--use_diffaug', action='store_true', default=False, help='Choose whether to perform differentiable augmentation.')
+    parser.add_argument('--use_diffaug', action='store_true', default=True, help='Choose whether to perform differentiable augmentation.')
 
 
     # Training hyper-parameters
