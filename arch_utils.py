@@ -195,7 +195,7 @@ class CenterFocusPriorLoss(nn.Module):
                 #     center_prior[:, : , x, y] = -self.g * (r - self.th)
         
         # calculate grid of radii
-        range = torch.range(0, dim-1, 1, device=device)
+        range = torch.arange(0, dim, device=device)
         x, y = torch.meshgrid(range, range)
         r = (x - center) ** 2 + (y - center) ** 2
         r = r.sqrt()

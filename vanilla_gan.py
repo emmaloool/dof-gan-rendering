@@ -18,7 +18,6 @@ import os
 import warnings
 
 import imageio
-from zmq import device
 
 warnings.filterwarnings("ignore")
 
@@ -27,6 +26,7 @@ import numpy as np
 
 # Torch imports
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
@@ -77,6 +77,7 @@ def create_model(opts):
     if torch.cuda.is_available():
         G.cuda()
         D.cuda()
+        T.cuda()
         print('Models moved to GPU.')
 
     return G, D, T
@@ -109,13 +110,16 @@ def checkpoint(iteration, G, D, opts):
     torch.save(D.state_dict(), D_path)
 
 
-def save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts):
+def save_samples(G, M, fixed_noise_c, fixed_noise_z, iteration, opts):
     generated_images, depthmap = G(fixed_noise_c, fixed_noise_z)
+    shallow_dof = Render(M, generated_images)
     generated_images = utils.to_data(generated_images)
     depthmap = utils.to_data(depthmap)
+    shallow_dof = utils.to_data(shallow_dof)
 
     grid = create_image_grid(generated_images)
     dgrid = create_image_grid(depthmap)
+    sgrid = create_image_grid(shallow_dof)
 
     # merged = merge_images(X, fake_Y, opts)
     path = os.path.join(opts.sample_dir, 'sample-{:06d}.png'.format(iteration))
@@ -124,6 +128,8 @@ def save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts):
     dpath = os.path.join(opts.sample_dir, 'depth-{:06d}.png'.format(iteration))
     imageio.imwrite(dpath, dgrid)
     print('Saved {}'.format(dpath))
+    spath = os.path.join(opts.sample_dir, 'shallow-{:06d}.png'.format(iteration))
+    imageio.imwrite(spath, sgrid)
 
 
 def save_images(images, iteration, opts, name):
@@ -219,18 +225,20 @@ def training_loop(train_dataloader, opts):
             # FILL THIS IN
             # 1. Sample noise
             I_g, D_g  = G.forward(noise_c, noise_z)
+            if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
+                I_g = DiffAugment(I_g, policy)
 
             # 2. Generate fake images from the noise
             
 
-            s = torch.randn(1).uniform_(0,1)    # Sample s from Bernoulli distribution in [0,1]
-            I_g, D_g  = G.forward(noise_c, noise_z)
-            if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
-                I_g = DiffAugment(I_g, policy)
+            # s = torch.randn(1).uniform_(0,1)    # Sample s from Bernoulli distribution in [0,1]
+            # I_g, D_g  = G.forward(noise_c, noise_z)
+            # if opts.use_diffaug:        # ----- Apply diff aug on fake images -----
+            #     I_g = DiffAugment(I_g, policy)
 
-            # -------------------- TRAINING ON ONLY GENERATED DEEP DOF IMAGE --------------------
-            # TODO: COMMENT THIS OUT IF YOU'RE ENABLING DOF MIXTURE LEARNING BELOW, THESE SECTIONS ARE MUTUALLY EXCLUSIVE
-            G_loss = torch.mean((D(I_g) - 1) ** 2)
+            # # -------------------- TRAINING ON ONLY GENERATED DEEP DOF IMAGE --------------------
+            # # TODO: COMMENT THIS OUT IF YOU'RE ENABLING DOF MIXTURE LEARNING BELOW, THESE SECTIONS ARE MUTUALLY EXCLUSIVE
+            # G_loss = torch.mean((D(I_g) - 1) ** 2)
             
             # ------------------- DoF mixture learning -------------------
             # '''
@@ -239,31 +247,35 @@ def training_loop(train_dataloader, opts):
             #     by rendering over deep I_g and D_g scaled by some random s in [0,1] (depth scaled to some extent)
             # ''' 
             # # Generate shallow DoF image from deep DoF image I_g and depth D_g scaled by s
-            # s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
+            s = torch.bernoulli(torch.randn(1).uniform_(0,1)).item()    # Sample s from Bernoulli distribution in [0,1]
             # print("Iteration " + str(iteration) + ": Rendering........ ")
-            # start = time.time()
-            # D_warp = warp_depthmap(s * D_g)
-            # print("done warping depth map")
-            # M = T(D_warp)
-            # I_s = Render(M, I_g)
-            # print("done rendering")
-            # end = time.time()
+            start = time.time()
+            D_warp = warp_depthmap(s * D_g)
+            # print("done warping depth map in " + str(time.time() - start) + " seconds")
+            M = T(D_warp)
+            I_s = Render(M, I_g)
+            # print("done rendering in " + str(time.time() - start) + " seconds")
             # if iteration % opts.sample_every == 0:
-            #     render_time = int(end-start)
-            #     print("Render time: ", str(render_time/60) + "m" + str(render_time%60) + "s")
+            #     I_s_clean = Render(M, I_g_clean)
+            #     img = I_s_clean.cpu().numpy()
+            #     img = create_image_grid(img)
+            #     print(img.shape)
+            #     io.imsave("./samples/iteration_" + str(iteration) + ".png", img)
 
-            # # 3. Compute the generator loss
-            # G_loss = torch.mean((D(I_s) - 1) ** 2)
+            # 3. Compute the generator loss
+            G_loss = torch.mean((D(I_s) - 1) ** 2)
             # ---------------------------------------------------------
             
             # center focus prior loss
             cfprior_loss = cfprior(D_g)
             G_loss += opts.cfprior_w * cfprior_loss
+            # Add regularization loss
+            G_loss += F.l1_loss(M, D_warp)
             # update the generator G
             g_optimizer.zero_grad()
             G_loss.backward()
             g_optimizer.step()
-
+            # print("Generator loss optimized in " + str(time.time() - start) + " seconds")
 
             # Print the log info
             if iteration % opts.log_step == 0:
@@ -277,7 +289,7 @@ def training_loop(train_dataloader, opts):
             # Save the generated samples
             if iteration % opts.sample_every == 0:
                 print("Saving...")
-                save_samples(G, fixed_noise_c, fixed_noise_z, iteration, opts)
+                save_samples(G, M, fixed_noise_c, fixed_noise_z, iteration, opts)
                 save_images(real_images, iteration, opts, 'real')
 
             # Save the model parameters
