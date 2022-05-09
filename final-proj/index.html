@@ -14,24 +14,59 @@ Emma Liu (emmaliu), Jason Xu (jiachenx), Joyce Zhang (yunyizha)
 
 (#) NeRF
 
+(##) Overview
 
+Neural radiance fields (NeRFs) are a state-of-the-art method for synthesizing a 3-dimensional view of an image from various captures at different angles by learning a function with 5-D inputs, $f(x, y, z, \theta, \phi)$, representing 3-D spatial coordinates in the image space and 2-D spherical coordinates representing view direction. Among the many uses for this learned function is simulating a lightfield grid, with which we can use to synthesize an image with shallow DoF. 
+
+<center><img src="figures/nerf-pipeline.jpg"></center>
+
+(##) Lightfield from NeRF function
+
+A lightfield image is captured by a camera system with lenslets in a rectangular grid, producing images offset from each other on the x-y plane (the plane parallel to the capture subject) by a set amount. Since NeRF functions are able to produce views from any position and viewing angle, we can simulate a lightfield capture by rendering the NeRF function repeatedly, using a grid of $x,y$ offset values simulating the position of each lenslet. Grouping all of these render results together yields an image array that can be processed with any lightfield processing algorithms, including the refocusing algorithm we discuss below. 
+
+(##) Refocusing with Lightfield Array
+
+The lightfield refocusing algorithm relies on the fact that there exists many images of the same subject at slightly different viewpoints to render a new image by selecting images with an aperture, shifting each image, then averaging the images together to produce a new image. The idea is that by shifting every pixel in an image, we in reality shift farther elements of the image more and the closer elements less, due to the parallax effect. In addition, when averaging multiple images together, aligned pixels will be clear and unaligned pixels will be blurred. Additionally, we will see more intense blur and less areas in focus as we include more images in the averaging, due to more pixels being unaligned, and by a larger amount. 
+
+Using these intuitions, we can write the refocusing algorithm using the lightfield image array $L$, sub-image location on the lightfield grid $(u,v)$, pixel location on a sub-image $(s, t)$, pixel shift $d$, and the set of images included in the aperture, $A$, as: $$I(s, t, d) = \frac{1}{d} \int\int_{(u, v) \in A} L(u, v, s + d, t + d)\;du\;dv$$ where A is determined by sub-images within a specified radius from the center of the lightfield.
+
+(##) Results and Discussion
+
+We used a pre-optimized model of a fern provided by the authors of the NeRF paper in their codebase, generated a 5x5 lightfield to match AR-GAN's lightfield grid size, and generated a new image with the center of the fern in focus, as shown below.
+<center><img src="results/nerf-rendering.jpg"></center>
+Using this generated lightfield, we are also able to control the amount of blur and choose parts of the image in focus by changing our inputs of $d$ and $A$ into the refocusing algorithm.
+
+Overall, we are greatly satisfied with the quality of the image that we obtained. The adjustability of the shallow DoF effect is also greatly beneficial. The only downside is that NeRFs take a significant amount of data and massive amounts of computing power to train, with every new capture requiring a new round of training, which makes generating shallow DoF images this way incredibly expensive and impractical. However, pre-trained models may use this pipeline easily and effectively.
 
 
 (#) ARGAN 
 
-(##) Theory
+
+(##) Pipeline
 
 (###) DoF Mixture Learning
 
 (###) Center Focus Prior
 
+In images with a blurred blackground and shallow DoF, it is the most common case that the object in focus is in the center. This means that a depthmap of a shallow DoF image will most commonly have the smallest depth at the center, and gradually increasing depth towards the edges. For our project, this is true with our training data as well. Therefore, when training generation of the depth map, we implement a center focus prior so that the resulting depth map can have a realistic distribution of depth.
+
+The center focus prior $D_p$ is a function defined by an in-focus radius threshold $r_{th}$ and a rate of depth increase $g$. We define the depth for all pixels within $r_{th}$ to be 0, and all pixels outside of $r_{th}$ to be increasing in depth at rate $g$, having depth $g \cdot (r_{th} - r)$. This prior can then be used to calculate a prior loss against a generated depth map, $\mathcal{L}_p=\lambda_p \|D^g-D_p\|^2_2$ , which becomes a weighted portion of the total generator loss. 
+
 (##) Model Architecture
 
+We modeled the architecture after the implementation details described by Kaneko. However, after experiencing a few ambiguities in his implementation notes, we modified a few details. Specificaly, we found that replacing $deconv$ layers shared between $G_I$ and $G_D$ with $up_conv$ layers, which we are more familiar with in GAN model generation thanks to HW3, produced more realistic-looking results.
+
 (###) Generators
+
+Given a random noise $z$, we first generateo a deep DoF image $I_g^d(x)$ and corresponding depth $D_g(x)$ with two generators that share weights except for the last layer. We do this because the deep DoF image and depth image must reflect one another (i.e. exhibit a strong correlation). Effectively, we are learning a joint distribution between their domains.
 
 <center><img src="figures/generators.png"></center>
 
 (###) Depth Training Networks
+
+After the depth image is produced, the depth image is submitted to the neural network $T$ that is co-trained to expand $D(x)$ into a depth map $M(x,u)$ for each view in the light field. Note that in this notation, we are indexing into the depth map with a flattened 1D aperture coordinate $u$ (there are 25 channels in this depth map, one corresponding to each aperture coordinate $(u',v')$ and corresponding image coordinates $x$ (hence 64x64  image per channel).
+
+The architecture of this network $T$ is depicted in the diagram below. The image and channel dimensions remain constant here - it's just a pass-through
 
 <center><img src="figures/depthexpansionnetwork.png"></center>
 
@@ -41,6 +76,7 @@ Emma Liu (emmaliu), Jason Xu (jiachenx), Joyce Zhang (yunyizha)
 
 
 (##) Lightfield Renderer
+
 
 (###) Depth Map Warper
 
@@ -87,8 +123,11 @@ TODO: Jason insert as many of the different intermediate pictures you took here
 
 <a href="https://arxiv.org/pdf/1904.01326.pdf">[2] Thu Nguyen-Phuoc, Chuan Li, Lucas Theis, Christian Richardt, and Yong-Liang Yang. HoloGAN: Unsupervised learning of 3D representations from natural images. In ICCV, 2019. </a>
 
-<a href="https://arxiv.org/pdf/1703.10593.pdf">[3] Jun-Yan Zhu, Taesung Park, Phillip Isola, and Alexei A.Efros. Unpaired image-to-image translation using cycleconsistent adversarial networks. In ICCV, 2017 </a>
+<a href="https://arxiv.org/pdf/1703.10593.pdf">[3] Jun-Yan Zhu, Taesung Park, Phillip Isola, and Alexei A.Efros. Unpaired image-to-image translation using cycleconsistent adversarial networks. In ICCV, 2017. </a>
 
+<a href="https://github.com/bmild/nerf">[4] Ben Mildenhall, Pratul P. Srinivasan, Matthew Tancik, Jonathan T. Barron, Ravi Ramamoorthi, and Ren Ng. Code release for NeRF: Representing Scenes as Neural Radiance Fields for View Synthesis. In ECCV, 2020. </a>
+
+<a href="http://graphics.cs.cmu.edu/courses/15-463/2020_fall/">[5] Ioannis Gkioulekas. 15-463, 15-663, 15-862 Computational Photography, Fall 2020. </a>
 
 
 I used the [15-668: Physics-Based Rendering](http://graphics.cs.cmu.edu/courses/15-468/) report template. For an overview of Markdeep and its syntax, see the [official demo document](https://casual-effects.com/markdeep/features.md.html) and
