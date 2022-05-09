@@ -34,16 +34,19 @@ In our study, we use the [Oxford Flowers Dataset from the Visual Geometry Group]
 
 CycleGAN is a generative adversarial network (GAN) that allows for generates images from translate an image from a source domain X to a target domain Y in the absence of paired examples. The model consists of a generator G and a discriminator D, and maintains cycle consistency between X and Y.
 
-**ADD A PICTURE OR SOMETHING**
+
+<center><img src="figures/cycle-pipeline.jpg""></center>
+image taken from official CycleGAN documentation
 
 (##) Method & Results
 
 In this project, we use the [Pytorch implementation of CycleGAN](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix) published by Dr. Jun-Yan Zhu. We also use the pre-trained model *iphone2dslr_flower* provided by the authors. The pretrained model goes from deep DOF images captured on iphones to shallow DOF images captured using a dlsr camera. We selected a set of flowers randomly from the dataset and run it through the model. The output is a generated image.
 
-**ADD THE OTHER IMAGE**
+<center><img src="figures/pass1.png""></center>
+<center><img src="figures/pass2.jpg""></center>
 
-The generated models yeild overall good results. Some parts of the image is blurred to simulate the bokeh effect, while foreground elements are kept in focus. The results sometimes yields unnecessary color changes, producing a overall grayer result. It should also be noted that the shallow DOF image generated has a set DOF, that is, the user cannot adjust how much the image is blurred. This is because the model limitated by the data it is trained on, and we would require several datasets to train the model if we wish to have different aperature sizes.
 
+The generated models yield overall good results. Some parts of the image are blurred to simulate the bokeh effect, while foreground elements are kept in focus. From the randomly selected images, most of them were able to correctly identified the foreground element. The most visible artifact, from this method, is that results sometimes yield unnecessary color changes. It should also be noted that the shallow DOF image generated has a set DOF, that is, the user cannot adjust how much the image is blurred. This is because the model limited by the data it is trained on, and we would require several datasets to train the model if we wish to have different aperture sizes.
 (#) NeRF
 
 (##) Overview
