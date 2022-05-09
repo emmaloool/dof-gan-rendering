@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import torch.nn.functional as F
 
-from arch_utils import AdaIN, MLP, conv, deconv
+from arch_utils import AdaIN, MLP, conv, deconv, up_conv
 
 
 #################################################
@@ -18,25 +18,25 @@ class ARGenerator(nn.Module):
         # ----- Weights are shared between both generators for initial layers -----
         self.init_adain = AdaIN(1024, 128)
 
-        self.deconv_1 = deconv(1024, 512, kernel_size=4, norm='none')
+        self.deconv_1 = up_conv(1024, 512, kernel_size=3, norm='none')
         self.adain_1 = AdaIN(512, 128)
 
-        self.deconv_2 = deconv(512, 256, kernel_size=4, norm='none')
+        self.deconv_2 = up_conv(512, 256, kernel_size=3, norm='none')
         self.adain_2 = AdaIN(256, 128)
 
-        self.deconv_3 = deconv(256, 128, kernel_size=4, norm='none')
+        self.deconv_3 = up_conv(256, 128, kernel_size=3, norm='none')
         self.adain_3 = AdaIN(128, 128)
 
-        self.deconv_4 = deconv(128, 64, kernel_size=4, norm='adain') 
+        self.deconv_4 = up_conv(128, 64, kernel_size=3, norm='none') 
         self.adain_4 = AdaIN(64, 128)
 
         # ----- Image generator G_I -----
         # self.conv_I = conv(64, 3, kernel_size=4, stride=2, padding=33, norm='none')
         # TODO: fix image dim here
-        self.conv_I = conv(64, 3, kernel_size=4, stride=1, padding=2, norm='none')
+        self.conv_I = conv(64, 3, kernel_size=3, stride=1, padding=1, norm='none')
 
         # ----- Depth generator G_D -----
-        self.conv_D = conv(64, 1, kernel_size=4, stride=2, padding=2, norm='none')
+        self.conv_D = conv(64, 1, kernel_size=3, stride=1, padding=1, norm='none')
         self.mlp    = MLP(noise_size, 1)
 
 
@@ -132,12 +132,13 @@ class ARDiscriminator(nn.Module):
 
     def __init__(self, conv_dim=64):
         super(ARDiscriminator, self).__init__()
-        self.conv1 = conv(3, 64, kernel_size=5, stride=3, padding=17, norm='none')
-        self.conv2 = conv(64, 128,  kernel_size=5, stride=3, padding=9, norm='instance', spectral=True)
-        self.conv3 = conv(128, 256, kernel_size=5, stride=3, padding=5, norm='instance', spectral=True)
-        self.conv4 = conv(256, 512, kernel_size=5, stride=3, padding=3, norm='instance', spectral=True)
+        self.conv1 = conv(3, 32, 4, padding=1, norm='instance', spectral=True)
+        self.conv2 = conv(32, 64, 4, padding=1, norm='instance', spectral=True)
+        self.conv3 = conv(64, 128, 4, padding=1, norm='instance', spectral=True)
+        self.conv4 = conv(128, 256, 4, padding=1, norm='instance', spectral=True)
+        self.conv5 = conv(256, 1, 4, padding=0, norm=None)
         # self.linear = nn.Linear(512*4*4, 1)
-        self.conv5 = conv(512, 1, kernel_size=4, stride=2, padding=0, norm=None)
+        # self.conv5 = conv(512, 1, kernel_size=4, stride=2, padding=0, norm=None)
 
     def forward(self, x):
         """Outputs the discriminator score given a deep DoF image x
