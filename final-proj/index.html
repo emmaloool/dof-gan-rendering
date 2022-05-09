@@ -1,0 +1,106 @@
+**A Survey of Aperture Rendering with GANs and NeRF**
+
+Emma Liu (emmaliu), Jason Xu (jiachenx), Joyce Zhang (yunyizha)
+
+(#) Overview
+
+
+
+
+(#) CycleGAN
+
+
+
+
+(#) NeRF
+
+
+
+
+(#) ARGAN 
+
+(##) Theory
+
+(###) DoF Mixture Learning
+
+(###) Center Focus Prior
+
+(##) Model Architecture
+
+(###) Generators
+
+<center><img src="figures/generators.png"></center>
+
+(###) Depth Training Networks
+
+<center><img src="figures/depthexpansionnetwork.png"></center>
+
+(###) Discriminator
+
+<center><img src="figures/discriminator.png"></center>
+
+
+(##) Lightfield Renderer
+
+(###) Depth Map Warper
+
+(###) Lightfield Integration over Aperture
+
+(##) Training
+
+(###) Pass-Through Flow
+
+(###) Parameter Setup
+
+
+(##) Results
+
+TODO: Jason insert as many of the different intermediate pictures you took here
+
+
+
+
+
+
+<!-- You can use latex like this: -->
+<!-- <center>$$z_* = argmin_z L(G(z), x) $$</center> -->
+
+<!-- Images displayed in a table with labels:  -->
+
+<!-- <table width="100%">
+	<tbody>
+		<tr valign="top">
+			<td><center><img src="results/part1/1_loss/0_data.png"></center><center>Original</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_0_10000.png"></center><center>$w_{perc}=0$</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_0.2_10000.png"></center><center>$w_{perc}=0.2$</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_0.4_10000.png"></center><center>$w_{perc}=0.4$</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_0.6_10000.png"></center><center>$w_{perc}=0.6$</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_0.8_10000.png"></center><center>$w_{perc}=0.8$</center></td>
+			<td><center><img src="results/part1/1_loss/0_stylegan_w_1_10000.png"></center><center>$w_{perc}=1$</center></td>
+		</tr>
+	</tbody>
+</table> -->
+
+(#) References
+
+<a href="http://www.kecl.ntt.co.jp/people/kaneko.takuhiro/projects/ar-gan">[1] Kaneko, Takuhiro. "Unsupervised Learning of Depth and Depth-of-Field Effect from Natural Images with Aperture Rendering Generative Adversarial Networks."" 2021 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) (2021): 15674-15683. </a>
+
+<a href="https://arxiv.org/pdf/1904.01326.pdf">[2] Thu Nguyen-Phuoc, Chuan Li, Lucas Theis, Christian Richardt, and Yong-Liang Yang. HoloGAN: Unsupervised learning of 3D representations from natural images. In ICCV, 2019. </a>
+
+<a href="https://arxiv.org/pdf/1703.10593.pdf">[3] Jun-Yan Zhu, Taesung Park, Phillip Isola, and Alexei A.Efros. Unpaired image-to-image translation using cycleconsistent adversarial networks. In ICCV, 2017 </a>
+
+
+
+I used the [15-668: Physics-Based Rendering](http://graphics.cs.cmu.edu/courses/15-468/) report template. For an overview of Markdeep and its syntax, see the [official demo document](https://casual-effects.com/markdeep/features.md.html) and
+the associated [source code](https://casual-effects.com/markdeep/features.md.html?noformat).
+
+<!--- Markdeep & image comparison library - probably no need to change anything below -->
+<style class="fallback">body{visibility:hidden;white-space:pre;font-family:monospace}</style><script src="resources/markdeep.min.js"></script><script>window.alreadyProcessedMarkdeep||(document.body.style.visibility="visible")</script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<script src="resources/jquery.event.move.js"></script>
+<script src="resources/jquery.twentytwenty.js"></script>
+<link href="resources/offcanvas.css" rel="stylesheet">
+<link href="resources/twentytwenty.css" rel="stylesheet" type="text/css" />
+<script>
+$(window).load(function(){$(".twentytwenty-container").twentytwenty({default_offset_pct: 0.5});});
+</script>
