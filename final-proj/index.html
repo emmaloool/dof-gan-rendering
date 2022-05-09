@@ -91,9 +91,20 @@ The architecture of this network $T$ is depicted in the diagram below. The image
 
 (##) Results
 
-TODO: Jason insert as many of the different intermediate pictures you took here
+Results shown below after 5000 iterations of AR-GAN trained with DoF mixture learning, recommended parameters in the paper and the Oxford Flowers dataset, hand-picked for images with a central subject.
 
+Depth map produced by AR-GAN:
+<center><img src="results/depthmap.png"></center>
+<nbsp></nbsp>
 
+Generated deep DoF images by AR-GAN:
+<center><img src="results/deep-dof.png"></center>
+<nbsp></nbsp>
+
+Shallow DoF images produced by AR-GAN's aperture renderer:
+<center><img src="results/shallow-dof.png"></center>
+
+Overall, the generator seems to lack performance due to <!--@Emma -->, but the depth map and shallow DoF image generation seem to perform well given the generator output, producing an image that seems to be blurred in the background and clear in the central subject.
 
 
 
